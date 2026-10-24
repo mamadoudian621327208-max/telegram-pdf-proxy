@@ -16,7 +16,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const TOKEN = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Route pour les documents PDF (existante)
+// Route pour les documents PDF (MISE À JOUR pour liens permanents)
 app.post('/upload', async (req, res) => {
     try {
         const { fileBase64, fileName } = req.body;
@@ -36,18 +36,34 @@ app.post('/upload', async (req, res) => {
         const doc = response.data.result.document;
         const fileId = doc.file_id;
 
-        const fileResponse = await axios.get(`https://api.telegram.org/bot${TOKEN}/getFile?file_id=${fileId}`);
-        const filePath = fileResponse.data.result.file_path;
-        const fileUrl = `https://api.telegram.org/file/bot${TOKEN}/${filePath}`;
+        // Création d'une URL permanente via ton propre serveur Render (ne périme jamais)
+        // Remplace "telegram-pdf-proxy.onrender.com" par le nom exact de ton application Render si besoin
+        const permanentUrl = `https://telegram-pdf-proxy.onrender.com/file/${fileId}`;
 
-        res.json({ success: true, url: fileUrl, file_id: fileId });
+        res.json({ success: true, url: permanentUrl, file_id: fileId });
     } catch (error) {
         console.error('Erreur lors de l’envoi à Telegram :', error.response?.data || error.message);
         res.status(500).json({ error: 'Erreur lors de l’envoi à Telegram' });
     }
 });
 
-// NOUVELLE ROUTE : Pour l'upload des photos de profil des professeurs
+// NOUVELLE ROUTE : Génère un lien valide à la volée à partir du file_id permanent
+app.get('/file/:fileId', async (req, res) => {
+    try {
+        const fileId = req.params.fileId;
+        const fileResponse = await axios.get(`https://api.telegram.org/bot${TOKEN}/getFile?file_id=${fileId}`);
+        const filePath = fileResponse.data.result.file_path;
+        const fileUrl = `https://api.telegram.org/file/bot${TOKEN}/${filePath}`;
+        
+        // Redirige l'application vers le lien frais de Telegram
+        res.redirect(fileUrl);
+    } catch (error) {
+        console.error('Erreur lors de la récupération du fichier :', error.response?.data || error.message);
+        res.status(500).json({ error: 'Impossible de récupérer le fichier' });
+    }
+});
+
+// Route pour l'upload des photos de profil des professeurs
 app.post('/upload-photo', async (req, res) => {
     try {
         const { fileBase64, fileName } = req.body;
@@ -60,13 +76,12 @@ app.post('/upload-photo', async (req, res) => {
         formData.append('chat_id', CHAT_ID);
         formData.append('photo', buffer, { filename: fileName || 'photo.jpg' });
 
-        // Utilisation de sendPhoto au lieu de sendDocument
         const response = await axios.post(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, formData, {
             headers: formData.getHeaders()
         });
 
         const photos = response.data.result.photo;
-        const fileId = photos[photos.length - 1].file_id; // Récupère la meilleure résolution
+        const fileId = photos[photos.length - 1].file_id;
 
         const fileResponse = await axios.get(`https://api.telegram.org/bot${TOKEN}/getFile?file_id=${fileId}`);
         const filePath = fileResponse.data.result.file_path;
