@@ -16,6 +16,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const TOKEN = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+// Route racine (ping) pour UptimeRobot (évite l'erreur 404 et garde le serveur éveillé)
+app.get('/', (req, res) => {
+    res.status(200).send('Proxy Telegram opérationnel !');
+});
+
 // Route pour les documents PDF (MISE À JOUR pour liens permanents)
 app.post('/upload', async (req, res) => {
     try {
@@ -37,7 +42,6 @@ app.post('/upload', async (req, res) => {
         const fileId = doc.file_id;
 
         // Création d'une URL permanente via ton propre serveur Render (ne périme jamais)
-        // Remplace "telegram-pdf-proxy.onrender.com" par le nom exact de ton application Render si besoin
         const permanentUrl = `https://telegram-pdf-proxy.onrender.com/file/${fileId}`;
 
         res.json({ success: true, url: permanentUrl, file_id: fileId });
